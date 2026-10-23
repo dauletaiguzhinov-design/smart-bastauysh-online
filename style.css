@@ -1,0 +1,276 @@
+:root {
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #203c3a;
+  background: #f3f7f4;
+  font-size: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+header {
+  padding: 24px 6%;
+  background: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  border-bottom: 1px solid #dce7df;
+}
+
+header a {
+  color: #164e45;
+  text-decoration: none;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+header span {
+  font-size: 15px;
+  color: #62756d;
+}
+
+header b {
+  background: #e8f1b8;
+  border-radius: 9px;
+  padding: 3px 8px;
+}
+
+main {
+  max-width: 1050px;
+  margin: auto;
+  padding: 35px 24px;
+}
+
+.hero {
+  padding: 25px 0 35px;
+}
+
+small {
+  letter-spacing: 2px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #527767;
+}
+
+h1 {
+  font-size: clamp(32px, 5vw, 53px);
+  line-height: 1.2;
+  margin: 20px 0;
+}
+
+em {
+  font-style: normal;
+  color: #46865e;
+}
+
+.hero p {
+  max-width: 650px;
+  line-height: 1.7;
+  color: #596d65;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  font-size: 14px;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #dde6de;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 40px #164e4507;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: #205d4b;
+  color: white;
+  border: 0;
+  border-radius: 12px;
+  padding: 13px 22px;
+  margin: 5px 8px 5px 0;
+}
+
+button:hover {
+  background: #33785f;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+nav button,
+.secondary {
+  background: #e6eee7;
+  color: #254e41;
+}
+
+input,
+select {
+  font: inherit;
+  padding: 14px;
+  border: 2px solid #b0cbb7;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin: 15px 0;
+  background: white;
+  color: #203c3a;
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 3px solid #b7d757;
+  outline-offset: 3px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.tile {
+  border-radius: 16px;
+  padding: 20px;
+  background: #f1f6ef;
+}
+
+.tile strong {
+  font-size: 28px;
+  display: block;
+  margin: 14px 0;
+}
+
+.bar {
+  height: 9px;
+  background: #e6eee7;
+  border-radius: 9px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: #69a271;
+}
+
+.muted {
+  font-size: 15px;
+  color: #64766b;
+  line-height: 1.7;
+}
+
+.question {
+  font-size: 25px;
+  line-height: 1.5;
+  margin: 25px 0;
+}
+
+.feedback {
+  padding: 16px;
+  background: #f0f5e7;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+footer {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6c7b71;
+  margin-top: 25px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+td,
+th {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid #dfe8df;
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+progress {
+  width: 100%;
+  accent-color: #46865e;
+}
+
+label {
+  display: block;
+}
+
+@media (max-width: 650px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 22px;
+  }
+
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tags {
+    gap: 12px;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  td,
+  th {
+    padding: 6px;
+  }
+}
+#teacherExplanation {
+  min-height: 240px;
+  padding: 14px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #203c36;
+  background: #ffffff;
+  border: 1px solid #a8cbb8;
+  border-radius: 12px;
+  resize: vertical;
+}
+
+#teacherExplanation:focus {
+  outline: 3px solid #c9e8d8;
+  border-color: #21634f;
+}
