@@ -29,6 +29,7 @@ COOKIE_SECURE = (
 )
 
 MODEL = "qwen2.5:7b"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 PUBLIC_FILES = {
     "/": "index.html",
@@ -203,15 +204,19 @@ class SmartHandler(SimpleHTTPRequestHandler):
         )
 
         payload = {
-            "model": MODEL,
-            "prompt": prompt,
-            "stream": False
+            "contents": [
+                {"parts": [{"text": prompt}]}
+            ]
         }
 
         request = urllib.request.Request(
-            "http://127.0.0.1:11434/api/generate",
+            "https://generativelanguage.googleapis.com/v1beta/"
+            "models/gemini-3.5-flash-lite:generateContent",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": GEMINI_API_KEY
+            },
             method="POST"
         )
 
@@ -226,7 +231,19 @@ class SmartHandler(SimpleHTTPRequestHandler):
             if not isinstance(result, dict):
                 raise ValueError()
 
-            answer = result.get("response", "")
+            candidates = result.get("candidates") or []
+            answer = ""
+
+            if candidates:
+                content = candidates[0].get("content") or {}
+                parts = content.get("parts") or []
+                answer = "".join(
+                    part["text"]
+                    for part in parts
+                    if isinstance(part, dict)
+                    and isinstance(part.get("text"), str)
+                    and not part.get("thought", False)
+                )
             if not isinstance(answer, str) or not answer.strip():
                 raise ValueError()
 
