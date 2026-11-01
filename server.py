@@ -188,6 +188,14 @@ class SmartHandler(SimpleHTTPRequestHandler):
             if not isinstance(topic, str) or topic not in EXAMPLES:
                 raise ValueError()
 
+            action = data.get("action", "explain")
+            if action not in ("explain", "tasks"):
+                raise ValueError()
+
+            level = data.get("level", 1)
+            if type(level) is not int or level not in (1, 2, 3):
+                raise ValueError()
+
         except (ValueError, UnicodeError):
             self.send_json(400, {"error": "Тақырып дұрыс берілмеген."})
             return
@@ -202,7 +210,31 @@ class SmartHandler(SimpleHTTPRequestHandler):
             f"Түсіндіретін мысал: {EXAMPLES[topic]}\n"
             "Осы үлгіге ұқсас үш сөйлемдік түсіндірме:"
         )
+        if action == "tasks":
+            requirements = {
+                1: "Бір амалдық жеңіл есептер. Сандар 100-ден аспасын.",
+                2: "Екі амалдық есептер. Сандар 1000-нан аспасын.",
+                3: "Екі немесе үш амалдық күрделірек есептер. "
+                   "Сандар 1000-нан аспасын."
+            }
 
+            prompt = (
+                "3-сынып математикасынан қазақ тілінде "
+                "бір-біріне ұқсамайтын 3 жаңа есеп құрастыр.\n"
+                f"Тақырып: {topic}\n"
+                f"Деңгей: {level}\n"
+                f"Талап: {requirements[level]}\n"
+                "Көбейту мен бөлуде көбейту кестесін қолдан. "
+                "Бөлу қалдықсыз болсын. "
+                "Әр жауап теріс емес бүтін сан болсын. "
+                "Сұрақ мәтінінде дайын жауапты көрсетпе. "
+                "hint өрісіне жауапты ашпайтын көмек жаз.\n"
+                "Тек JSON объектісін қайтар, Markdown қолданба. "
+                'Құрылымы: {"tasks": ['
+                '{"q": "Есептің сұрағы", '
+                '"answer": 12, "hint": "Көмек"}'
+                "]}. tasks ішінде дәл 3 есеп болсын."
+            )
         payload = {
             "contents": [
                 {"parts": [{"text": prompt}]}
@@ -246,7 +278,46 @@ class SmartHandler(SimpleHTTPRequestHandler):
                 )
             if not isinstance(answer, str) or not answer.strip():
                 raise ValueError()
+            if action == "tasks":
+                generated = json.loads(answer)
+                if not isinstance(generated, dict):
+                    raise ValueError()
 
+                tasks = generated.get("tasks")
+                if not isinstance(tasks, list) or len(tasks) != 3:
+                    raise ValueError()
+
+                checked = []
+                questions = set()
+
+                for task in tasks:
+                    if not isinstance(task, dict):
+                        raise ValueError()
+
+                    q = task.get("q")
+                    value = task.get("answer")
+                    hint = task.get("hint")
+
+                    if not isinstance(q, str) or not 5 <= len(q.strip()) <= 600:
+                        raise ValueError()
+                    if type(value) is not int or not 0 <= value <= 10000:
+                        raise ValueError()
+                    if not isinstance(hint, str) or not 1 <= len(hint.strip()) <= 400:
+                        raise ValueError()
+                    if q.strip() in questions:
+                        raise ValueError()
+
+                    questions.add(q.strip())
+                    checked.append({
+                        "q": q.strip(),
+                        "answer": value,
+                        "hint": hint.strip(),
+                        "topic": list(EXAMPLES).index(topic),
+                        "level": level
+                    })
+
+                self.send_json(200, {"tasks": checked})
+                return
             self.send_json(200, {
                 "text": answer.strip(),
                 "source": "ЖИ жауабы. Мұғалім тексеруі қажет."

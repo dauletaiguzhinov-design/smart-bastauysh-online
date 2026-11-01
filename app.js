@@ -13,6 +13,8 @@ let queue = [];
 let answers = [];
 let practiceAnswers = [];
 let currentStats = [];
+let aiTaskDrafts = [];
+let approvedAiTasks = [];
 let position = 0;
 let mode = "diagnostic";
 
@@ -42,6 +44,8 @@ function home() {
     answers = [];
     practiceAnswers = [];
     currentStats = [];
+        aiTaskDrafts = [];
+    approvedAiTasks = [];
     position = 0;
     mode = "diagnostic";
     showQuestion();
@@ -68,7 +72,7 @@ function showQuestion() {
 
     <p>${Smart.topics[task.topic]}</p>
 
-    <div class="question">${task.q}</div>
+    <div class="question" id="questionText"></div>
 
     <form id="answerForm">
       <label for="answer">Санмен жауап бер:</label>
@@ -89,7 +93,7 @@ function showQuestion() {
 
     <div id="feedback"></div>
   `;
-
+  document.querySelector("#questionText").textContent = task.q;
   document.querySelector("#answer").focus();
 
   document.querySelector("#answerForm").onsubmit = function (event) {
@@ -220,7 +224,12 @@ function showResults() {
     <button id="practice">
       Маған арналған тапсырмалар →
     </button>
+    <button id="generateAiTasks" class="secondary">
+      Деңгейіме сай ЖИ есептерін құрастыру
+    </button>
 
+    <p id="aiTasksStatus" role="status"></p>
+    <div id="aiTasksReview"></div>
     <button id="download" class="secondary">
       Есепті жүктеу
     </button>
@@ -231,13 +240,15 @@ function showResults() {
   `;
 
   document.querySelector("#practice").onclick = function () {
-    queue = Smart.recommend(currentStats);
+    queue = approvedAiTasks.length > 0
+      ? approvedAiTasks.map((task) => ({ ...task }))
+      : Smart.recommend(currentStats);
     practiceAnswers = [];
     position = 0;
     mode = "practice";
     showQuestion();
   };
-
+  document.querySelector("#generateAiTasks").onclick = generateAiTasks;
   document.querySelector("#download").onclick = downloadReport;
   document.querySelector("#restart").onclick = home;
 }
@@ -714,3 +725,174 @@ logoutButton.addEventListener("click", async () => {
     logoutButton.disabled = false;
   }
 });
+async function generateAiTasks() {
+  const button = document.querySelector("#generateAiTasks");
+  const status = document.querySelector("#aiTasksStatus");
+  const review = document.querySelector("#aiTasksReview");
+
+  if (!button || !status || !review || !currentStats.length) return;
+
+  const statsSnapshot = currentStats;
+  const weakest = [...currentStats].sort(
+    (a, b) => a.percent - b.percent || a.topic - b.topic
+  )[0];
+
+  button.disabled = true;
+  aiTaskDrafts = [];
+  approvedAiTasks = [];
+  review.replaceChildren();
+  status.textContent =
+    `${weakest.name}: ${levels[weakest.level]}. ЖИ есеп құрастыруда…`;
+
+  try {
+    const response = await fetch("/api/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "tasks",
+        topic: weakest.name,
+        level: weakest.level
+      }),
+      signal: AbortSignal.timeout(125000)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Есептер алынбады.");
+    }
+
+    if (!Array.isArray(result.tasks) || result.tasks.length !== 3) {
+      throw new Error("ЖИ есептерді дұрыс пішімде қайтармады.");
+    }
+
+    if (currentStats !== statsSnapshot || !status.isConnected) return;
+
+    aiTaskDrafts = result.tasks.map((task) => ({
+      ...task,
+      id: crypto.randomUUID(),
+      topic: weakest.topic,
+      level: weakest.level
+    }));
+
+    status.textContent =
+      "3 есеп дайын. Мұғалім сұрақтарды, жауаптарды және деңгейді тексерсін.";
+
+    renderAiTaskReview();
+  } catch (error) {
+    if (status.isConnected) {
+      status.textContent = "Есеп құрастырылмады. " + error.message;
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+function renderAiTaskReview() {
+  const container = document.querySelector("#aiTasksReview");
+  if (!container) return;
+
+  container.replaceChildren();
+
+  const title = document.createElement("h3");
+  title.textContent = "Мұғалімге: ЖИ есептерін тексеру";
+  container.append(title);
+
+  aiTaskDrafts.forEach((task, index) => {
+    const block = document.createElement("fieldset");
+    block.dataset.taskIndex = String(index);
+
+    const legend = document.createElement("legend");
+    legend.textContent =
+      `${index + 1}-есеп · ${Smart.topics[task.topic]} · ${levels[task.level]}`;
+    block.append(legend);
+
+    const fields = [
+      ["q", "Есептің сұрағы", "textarea"],
+      ["answer", "Дұрыс жауап", "input"],
+      ["hint", "Көмек мәтіні", "textarea"]
+    ];
+
+    fields.forEach(([name, caption, tag]) => {
+      const label = document.createElement("label");
+      const field = document.createElement(tag);
+
+      field.id = `ai-task-${index}-${name}`;
+      field.dataset.field = name;
+      field.value = String(task[name]);
+      field.required = true;
+      field.style.width = "100%";
+      field.style.boxSizing = "border-box";
+
+      if (tag === "textarea") {
+        field.rows = 3;
+        field.maxLength = name === "q" ? 600 : 400;
+      } else {
+        field.type = "number";
+        field.min = "0";
+        field.max = "10000";
+        field.step = "1";
+      }
+
+      label.htmlFor = field.id;
+      label.textContent = caption;
+      block.append(label, field);
+    });
+
+    container.append(block);
+  });
+
+  const approve = document.createElement("button");
+  approve.type = "button";
+  approve.id = "approveAiTasks";
+  approve.textContent = "Есептер мен жауаптарды тексердім — бекіту";
+  approve.onclick = approveAiTasks;
+  container.append(approve);
+}
+function approveAiTasks() {
+  const container = document.querySelector("#aiTasksReview");
+  const status = document.querySelector("#aiTasksStatus");
+  if (!container || !status || !aiTaskDrafts.length) return;
+
+  const checked = [];
+
+  for (let index = 0; index < aiTaskDrafts.length; index++) {
+    const block = container.querySelector(
+      `[data-task-index="${index}"]`
+    );
+
+    if (!block) return;
+
+    const question = block.querySelector('[data-field="q"]');
+    const answer = block.querySelector('[data-field="answer"]');
+    const hint = block.querySelector('[data-field="hint"]');
+
+    const q = question.value.trim();
+    const raw = answer.value.trim();
+    const value = Number(raw);
+    const help = hint.value.trim();
+
+    if (
+      q.length < 5 || q.length > 600 ||
+      raw === "" || !Number.isInteger(value) ||
+      value < 0 || value > 10000 ||
+      !help || help.length > 400
+    ) {
+      status.textContent =
+        `${index + 1}-есептің сұрағын, бүтін санды жауабын және көмегін тексеріңіз.`;
+      return;
+    }
+
+    checked.push({
+      ...aiTaskDrafts[index],
+      q: q,
+      answer: value,
+      hint: help
+    });
+  }
+
+  approvedAiTasks = checked;
+  status.textContent =
+    "3 есеп бекітілді. «Маған арналған тапсырмалар» батырмасын басыңыз.";
+
+  container.replaceChildren();
+}
