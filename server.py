@@ -1,4 +1,8 @@
 import os
+import hmac
+import secrets
+import time
+from threading import Lock
 from http.cookies import SimpleCookie, CookieError
 from database import init_db
 from auth import (
@@ -30,6 +34,11 @@ COOKIE_SECURE = (
 
 MODEL = "qwen2.5:7b"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "")
+TEACHER_SESSIONS = {}
+TEACHER_LOGIN_ATTEMPTS = {}
+TEACHER_LOCK = Lock()
+TEACHER_SESSION_SECONDS = 1800
 
 PUBLIC_FILES = {
     "/": "index.html",
@@ -89,6 +98,29 @@ class SmartHandler(SimpleHTTPRequestHandler):
     def current_student(self):
         token = self.get_session_token()
         return get_session_student(token)
+    def current_teacher(self):
+        cookies = SimpleCookie()
+
+        try:
+            cookies.load(self.headers.get("Cookie", ""))
+        except CookieError:
+            return False
+
+        cookie = cookies.get("smart_teacher")
+        if cookie is None:
+            return False
+
+        token = cookie.value
+
+        with TEACHER_LOCK:
+            expires = TEACHER_SESSIONS.get(token, 0)
+
+            if expires <= time.monotonic():
+                TEACHER_SESSIONS.pop(token, None)
+                return False
+
+        return True
+
     def select_file(self):
         path = self.path.split("?", 1)[0]
         if path not in PUBLIC_FILES:
@@ -98,6 +130,12 @@ class SmartHandler(SimpleHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        if self.path == "/api/teacher/me":
+            self.send_json(200, {
+                "teacher": self.current_teacher()
+            })
+            return
+
         if self.path == "/api/me":
             student = self.current_student()
             self.send_json(200, {"student": student})
@@ -161,7 +199,120 @@ class SmartHandler(SimpleHTTPRequestHandler):
                 f"SameSite=Strict; Max-Age=28800{COOKIE_SECURE}"
             )
         )
+    def handle_teacher_login(self):
+        if self.headers.get("Origin") != PUBLIC_ORIGIN:
+            self.send_json(403, {"error": "Сұрауға рұқсат жоқ."})
+            return
+
+        if not TEACHER_PASSWORD:
+            self.send_json(503, {
+                "error": "Мұғалім құпиясөзі серверде орнатылмаған."
+            })
+            return
+
+        now = time.monotonic()
+        address = self.client_address[0]
+
+        with TEACHER_LOCK:
+            for key, (_, until) in list(TEACHER_LOGIN_ATTEMPTS.items()):
+                if until <= now:
+                    del TEACHER_LOGIN_ATTEMPTS[key]
+
+            count, until = TEACHER_LOGIN_ATTEMPTS.get(
+                address, (0, now + 300)
+            )
+            blocked = count >= 5
+
+            if not blocked:
+                TEACHER_LOGIN_ATTEMPTS[address] = (count + 1, until)
+
+        if blocked:
+            self.send_json(429, {
+                "error": "Кіру әрекеті тым көп. 5 минуттан кейін қайталаңыз."
+            })
+            return
+
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= 4096:
+                raise ValueError()
+
+            data = json.loads(self.rfile.read(size))
+            if not isinstance(data, dict):
+                raise ValueError()
+
+            password = data.get("password")
+            if not isinstance(password, str):
+                raise ValueError()
+        except (ValueError, UnicodeError):
+            self.send_json(400, {"error": "Сұрау дұрыс берілмеген."})
+            return
+
+        if not hmac.compare_digest(
+            password.encode("utf-8"),
+            TEACHER_PASSWORD.encode("utf-8")
+        ):
+            self.send_json(401, {"error": "Құпиясөз қате."})
+            return
+
+        token = secrets.token_urlsafe(32)
+
+        with TEACHER_LOCK:
+            for key, expires in list(TEACHER_SESSIONS.items()):
+                if expires <= now:
+                    del TEACHER_SESSIONS[key]
+
+            TEACHER_SESSIONS[token] = now + TEACHER_SESSION_SECONDS
+            TEACHER_LOGIN_ATTEMPTS.pop(address, None)
+
+        self.send_json(
+            200,
+            {"teacher": True},
+            cookie=(
+                f"smart_teacher={token}; Path=/; HttpOnly; "
+                f"SameSite=Strict; Max-Age={TEACHER_SESSION_SECONDS}"
+                f"{COOKIE_SECURE}"
+            )
+        )
+
+    def handle_teacher_logout(self):
+        if self.headers.get("Origin") != PUBLIC_ORIGIN:
+            self.send_json(403, {"error": "Сұрауға рұқсат жоқ."})
+            return
+
+        cookies = SimpleCookie()
+
+        try:
+            cookies.load(self.headers.get("Cookie", ""))
+        except CookieError:
+            cookies = SimpleCookie()
+
+        cookie = cookies.get("smart_teacher")
+
+        if cookie is not None:
+            with TEACHER_LOCK:
+                TEACHER_SESSIONS.pop(cookie.value, None)
+
+        self.send_json(
+            200,
+            {"teacher": False},
+            cookie=(
+                "smart_teacher=; Path=/; HttpOnly; "
+                f"SameSite=Strict; Max-Age=0{COOKIE_SECURE}"
+            )
+        )
+
     def do_POST(self):
+        if self.path == "/api/teacher/logout":
+            self.handle_teacher_logout()
+            return
+
+        if self.path == "/api/teacher/login":
+            self.handle_teacher_login()
+            return
+
+
+
         if self.path in ("/api/register", "/api/login", "/api/logout"):
             self.handle_auth_post()
             return
@@ -198,6 +349,12 @@ class SmartHandler(SimpleHTTPRequestHandler):
 
         except (ValueError, UnicodeError):
             self.send_json(400, {"error": "Тақырып дұрыс берілмеген."})
+            return
+
+        if action == "explain" and not self.current_teacher():
+            self.send_json(401, {
+                 "error": "Алдымен мұғалім құпиясөзімен кіріңіз."
+            })
             return
 
         prompt = (

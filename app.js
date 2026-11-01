@@ -325,6 +325,75 @@ function downloadReport() {
   }, 1000);
 }
 
+function openTeacherLogin() {
+  aiPanel.hidden = true;
+
+  view.innerHTML = `
+    <h2>Мұғалім бөліміне кіру</h2>
+
+    <form id="teacherLoginForm">
+      <label for="teacherPassword">Мұғалім құпиясөзі:</label>
+      <input
+        id="teacherPassword"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+
+      <p id="teacherLoginStatus" role="status"></p>
+      <button type="submit">Кіру</button>
+    </form>
+
+    <button id="teacherLoginBack" class="secondary">
+      Оқушы бөліміне оралу
+    </button>
+  `;
+
+  const form = document.querySelector("#teacherLoginForm");
+  const password = document.querySelector("#teacherPassword");
+  const status = document.querySelector("#teacherLoginStatus");
+  const button = form.querySelector("button");
+
+  document.querySelector("#teacherLoginBack").onclick = openStudent;
+  password.focus();
+
+  form.onsubmit = async function (event) {
+    event.preventDefault();
+    button.disabled = true;
+    status.textContent = "Тексерілуде…";
+
+    try {
+      const response = await fetch("/api/teacher/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ password: password.value }),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      const result = await response.json();
+      password.value = "";
+
+      if (!response.ok || result.teacher !== true) {
+        throw new Error(result.error || "Кіру орындалмады.");
+      }
+
+      if (!form.isConnected) return;
+
+      showTeacher();
+      aiPanel.hidden = false;
+    } catch (error) {
+      password.value = "";
+
+      if (form.isConnected) {
+        status.textContent = error.message;
+        password.focus();
+      }
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
 // Мұғалімге арналған бөлім
 function showTeacher() {
   view.innerHTML = `
@@ -391,8 +460,24 @@ function showTeacher() {
 }
 
 // Аяқталған нәтижеге немесе ағымдағы сұраққа оралу
-function openStudent() {
+async function openStudent() {
   aiPanel.hidden = true;
+
+  try {
+    const response = await fetch("/api/teacher/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error("Мұғалім сеансын жабу орындалмады.");
+    }
+  } catch (error) {
+    alert("Байланысты тексеріп, қайта басыңыз. " + error.message);
+    return;
+  }
+
   if (queue.length > 0 && position < queue.length) {
     showQuestion();
   } else if (currentStats.length > 0) {
@@ -403,7 +488,7 @@ function openStudent() {
 }
 
 document.querySelector("#tabStart").onclick = openStudent;
-document.querySelector("#tabTeacher").onclick = showTeacher;
+document.querySelector("#tabTeacher").onclick = openTeacherLogin;
 
 // Қолданбаны ашу
 home();
@@ -522,9 +607,7 @@ document.querySelector("#askAI").onclick = async function () {
 };
 aiPanel.hidden = true;
 
-document.getElementById("tabTeacher").addEventListener("click", () => {
-  aiPanel.hidden = false;
-});
+
 
 document.getElementById("tabStart").addEventListener("click", () => {
   aiPanel.hidden = true;
