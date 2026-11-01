@@ -1,3 +1,4 @@
+let currentStudent = null;
 "use strict";
 
 const view = document.querySelector("#view");
@@ -20,6 +21,16 @@ let mode = "diagnostic";
 
 // Басты бет
 function home() {
+    if (!currentStudent) {
+    view.innerHTML = `
+      <h2>Алдымен оқушы кабинетіне кіріңіз</h2>
+      <p>
+        Диагностиканы ашу үшін логин мен құпиясөзді
+        енгізіп, «Кіру» батырмасын басыңыз.
+      </p>
+    `;
+    return;
+  }
   view.innerHTML = `
     <h2>Сәлем, жас зерттеуші!</h2>
 
@@ -710,7 +721,6 @@ approveButton.onclick = () => {
   approvedText.textContent = text;
   approvedCard.hidden = false;
 };
-let currentStudent = null;
 
 async function authRequest(path, data) {
   const response = await fetch(path, {
@@ -793,6 +803,7 @@ document.querySelector("#studentAuthForm")
       currentStudent = result.student;
       form.reset();
       form.hidden = true;
+      home();
 
       message.textContent =
         `Қош келдің, ${currentStudent.login}!`;
@@ -817,6 +828,7 @@ document.querySelector("#studentAuthForm")
 
     const result = await response.json();
     currentStudent = result.student;
+    home();
 
     form.hidden = Boolean(currentStudent);
     message.textContent = currentStudent
