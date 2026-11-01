@@ -399,6 +399,13 @@ function openTeacherLogin() {
 function showTeacher() {
   view.innerHTML = `
     <h2>Мұғалімге арналған ақпарат</h2>
+        <h3>Оқушының диагностика нәтижесі</h3>
+
+    ${
+      currentStats.length > 0
+        ? makeTiles(currentStats)
+        : "<p>Оқушы диагностиканы әлі аяқтаған жоқ.</p>"
+    }
         <h3>Оқушы деңгейіне сай ЖИ есептері</h3>
 
     <p>
