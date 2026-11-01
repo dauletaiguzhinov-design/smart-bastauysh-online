@@ -351,7 +351,7 @@ class SmartHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {"error": "Тақырып дұрыс берілмеген."})
             return
 
-        if action == "explain" and not self.current_teacher():
+        if not self.current_teacher():
             self.send_json(401, {
                  "error": "Алдымен мұғалім құпиясөзімен кіріңіз."
             })

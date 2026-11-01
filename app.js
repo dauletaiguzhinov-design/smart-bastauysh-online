@@ -231,12 +231,6 @@ function showResults() {
     <button id="practice">
       Маған арналған тапсырмалар →
     </button>
-    <button id="generateAiTasks" class="secondary">
-      Деңгейіме сай ЖИ есептерін құрастыру
-    </button>
-
-    <p id="aiTasksStatus" role="status"></p>
-    <div id="aiTasksReview"></div>
     <button id="download" class="secondary">
       Есепті жүктеу
     </button>
@@ -255,7 +249,7 @@ function showResults() {
     mode = "practice";
     showQuestion();
   };
-  document.querySelector("#generateAiTasks").onclick = generateAiTasks;
+  
   document.querySelector("#download").onclick = downloadReport;
   document.querySelector("#restart").onclick = home;
 }
@@ -405,6 +399,19 @@ function openTeacherLogin() {
 function showTeacher() {
   view.innerHTML = `
     <h2>Мұғалімге арналған ақпарат</h2>
+        <h3>Оқушы деңгейіне сай ЖИ есептері</h3>
+
+    <p>
+      Алдымен оқушы диагностиканы аяқтасын.
+      Есептер оның нәтижесіне сәйкес құрастырылады.
+    </p>
+
+    <button id="generateAiTasks" class="secondary">
+      Оқушы деңгейіне сай ЖИ есептерін құрастыру
+    </button>
+
+    <p id="aiTasksStatus" role="status"></p>
+    <div id="aiTasksReview"></div>
 
     <p>
       Оқушы 9 сұрақ орындайды.
@@ -462,7 +469,23 @@ function showTeacher() {
 
     <button id="return">Оқушы бөліміне оралу</button>
   `;
+  const generateButton = document.querySelector("#generateAiTasks");
+  const taskStatus = document.querySelector("#aiTasksStatus");
 
+  generateButton.disabled = currentStats.length === 0;
+  generateButton.onclick = generateAiTasks;
+
+  if (currentStats.length === 0) {
+    taskStatus.textContent =
+      "Алдымен оқушы бөлімінде диагностиканы аяқтаңыз.";
+  } else if (approvedAiTasks.length > 0) {
+    taskStatus.textContent =
+      "Бекітілген есептер дайын. Оқушы бөліміне оралыңыз.";
+  } else if (aiTaskDrafts.length > 0) {
+    taskStatus.textContent =
+      "Есептер мен сызбалардың сәйкестігін тексеріп, бекітіңіз.";
+    renderAiTaskReview();
+  }
   document.querySelector("#return").onclick = openStudent;
 }
 
@@ -1024,8 +1047,10 @@ function approveAiTasks() {
   }
 
   approvedAiTasks = checked;
+
   status.textContent =
-    "3 есеп бекітілді. «Маған арналған тапсырмалар» батырмасын басыңыз.";
+    "3 есеп бекітілді. «Оқушы бөліміне оралу» батырмасын басыңыз. " +
+    "Оқушы «Маған арналған тапсырмалар» арқылы есептерді орындай алады.";
 
   container.replaceChildren();
 }
