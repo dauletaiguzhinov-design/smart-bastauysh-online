@@ -73,6 +73,7 @@ function showQuestion() {
     <p>${Smart.topics[task.topic]}</p>
 
     <div class="question" id="questionText"></div>
+    <div id="taskVisual" style="margin: 16px 0;" hidden></div>
 
     <form id="answerForm">
       <label for="answer">Санмен жауап бер:</label>
@@ -94,6 +95,12 @@ function showQuestion() {
     <div id="feedback"></div>
   `;
   document.querySelector("#questionText").textContent = task.q;
+    if (mode === "practice" && task.visualApproved === true) {
+    drawTaskVisual(
+      task.visual,
+      document.querySelector("#taskVisual")
+    );
+  }
   document.querySelector("#answer").focus();
 
   document.querySelector("#answerForm").onsubmit = function (event) {
@@ -920,7 +927,38 @@ function renderAiTaskReview() {
       label.textContent = caption;
       block.append(label, field);
     });
+    const preview = document.createElement("div");
+    drawTaskVisual(task.visual, preview);
+    block.append(preview);
 
+    if (!preview.hidden) {
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+
+      checkbox.type = "checkbox";
+      checkbox.dataset.field = "visualApproved";
+      checkbox.style.width = "auto";
+
+      label.append(
+        checkbox,
+        document.createTextNode(
+          " Сызбадағы заттар мен сандар есеп шартына сәйкес."
+        )
+      );
+
+      block.append(label);
+
+      for (const name of ["q", "answer"]) {
+        block.querySelector(`[data-field="${name}"]`)
+          .addEventListener("input", () => {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+            preview.hidden = true;
+            label.title =
+              "Есеп өзгертілді. Бұл есеп сызбасыз ұсынылады.";
+          });
+      }
+    }
     container.append(block);
   });
 
@@ -965,11 +1003,23 @@ function approveAiTasks() {
       return;
     }
 
+    const visualCheck = block.querySelector(
+      '[data-field="visualApproved"]'
+    );
+
+    const visualApproved = Boolean(
+      visualCheck &&
+      visualCheck.checked &&
+      !visualCheck.disabled
+    );
+
     checked.push({
       ...aiTaskDrafts[index],
       q: q,
       answer: value,
-      hint: help
+      hint: help,
+      visual: visualApproved ? aiTaskDrafts[index].visual : null,
+      visualApproved: visualApproved
     });
   }
 
@@ -978,4 +1028,68 @@ function approveAiTasks() {
     "3 есеп бекітілді. «Маған арналған тапсырмалар» батырмасын басыңыз.";
 
   container.replaceChildren();
+}
+function drawTaskVisual(visual, container) {
+  if (!container) return;
+
+  container.replaceChildren();
+  container.hidden = true;
+
+  if (!visual || visual.kind !== "equal_groups") return;
+
+  const items = {
+    apple: ["🍎", "алма"],
+    pencil: ["✏️", "қарындаш"],
+    book: ["📘", "кітап"],
+    ball: ["⚽", "доп"]
+  };
+
+  const item = items[visual.item];
+  const groups = visual.groups;
+  const perGroup = visual.perGroup;
+
+  if (
+    !item ||
+    !Number.isInteger(groups) ||
+    !Number.isInteger(perGroup) ||
+    groups < 1 || groups > 6 ||
+    perGroup < 1 || perGroup > 10
+  ) return;
+
+  const caption = document.createElement("p");
+  caption.textContent = "Есептің көрнекі сызбасы";
+  container.append(caption);
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.flexWrap = "wrap";
+  row.style.gap = "12px";
+
+  for (let index = 0; index < groups; index++) {
+    const box = document.createElement("div");
+    box.style.border = "2px solid #86ad96";
+    box.style.borderRadius = "12px";
+    box.style.padding = "12px";
+    box.style.background = "#f2f7ef";
+
+    const label = document.createElement("p");
+    label.textContent = `${index + 1}-топ`;
+    label.style.margin = "0 0 8px";
+
+    const objects = document.createElement("div");
+    objects.textContent = Array(perGroup).fill(item[0]).join(" ");
+    objects.style.fontSize = "28px";
+    objects.style.maxWidth = "180px";
+    objects.setAttribute("role", "img");
+    objects.setAttribute(
+      "aria-label",
+      `${perGroup} ${item[1]}`
+    );
+
+    box.append(label, objects);
+    row.append(box);
+  }
+
+  container.append(row);
+  container.hidden = false;
 }

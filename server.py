@@ -392,6 +392,28 @@ class SmartHandler(SimpleHTTPRequestHandler):
                 '"answer": 12, "hint": "Көмек"}'
                 "]}. tasks ішінде дәл 3 есеп болсын."
             )
+        if action == "tasks":
+            prompt += (
+                "\nӘр есепке visual өрісін қос. "
+                "Егер мәтінді есепте бірдей топтар саны және "
+                "әр топтағы заттар саны беріліп, жалпы саны сұралса, "
+                "visual объектісін бер. "
+                "Тек алма, қарындаш, кітап немесе доп қолдан. "
+                "Құрылымы: "
+                '{"kind": "equal_groups", "item": "pencil", '
+                '"groups": 3, "perGroup": 6}. '
+                "item мәндері: apple, pencil, book, ball. "
+                "groups — 1-ден 6-ға дейінгі бүтін сан. "
+                "perGroup — 1-ден 10-ға дейінгі бүтін сан. "
+                "Бұл сандар есептің шартында дәл берілсін. "
+                "Сызбаға белгісіз жауапты енгізбе. "
+                "Бөлу, қосу, азайту немесе бірнеше амалдық "
+                "есептерде visual: null бер. "
+                "Сәйкес сызба жасау мүмкін болмаса да "
+                "visual: null бер. "
+                "Есептің тақырыбы мен деңгейін сақтау маңызды."
+            )
+
         payload = {
             "contents": [
                 {"parts": [{"text": prompt}]}
@@ -465,12 +487,41 @@ class SmartHandler(SimpleHTTPRequestHandler):
                         raise ValueError()
 
                     questions.add(q.strip())
+                    visual = None
+                    candidate = task.get("visual")
+
+                    if (
+                        topic == "Мәтінді есеп"
+                        and isinstance(candidate, dict)
+                        and candidate.get("kind") == "equal_groups"
+                        and candidate.get("item") in (
+                            "apple", "pencil", "book", "ball"
+                        )
+                    ):
+                        groups = candidate.get("groups")
+                        per_group = candidate.get("perGroup")
+
+                        if (
+                            type(groups) is int
+                            and type(per_group) is int
+                            and 1 <= groups <= 6
+                            and 1 <= per_group <= 10
+                            and groups * per_group == value
+                        ):
+                            visual = {
+                                "kind": "equal_groups",
+                                "item": candidate["item"],
+                                "groups": groups,
+                                "perGroup": per_group
+                            }
+
                     checked.append({
                         "q": q.strip(),
                         "answer": value,
                         "hint": hint.strip(),
                         "topic": list(EXAMPLES).index(topic),
-                        "level": level
+                        "level": level,
+                        "visual": visual
                     })
 
                 self.send_json(200, {"tasks": checked})
